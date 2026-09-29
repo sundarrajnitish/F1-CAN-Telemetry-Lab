@@ -1,0 +1,70 @@
+VERSION "2.0"
+
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    BA_DEF_DEF_
+    SIG_VALTYPE_
+
+BS_:
+
+BU_: CAR_ECU PIT_WALL
+
+
+BO_ 16 F1_SessionCtrl: 2 CAR_ECU
+ SG_ Command : 0|8@1+ (1,0) [0|3] "" PIT_WALL
+ SG_ DriverNumber : 8|8@1+ (1,0) [0|99] "" PIT_WALL
+
+BO_ 257 F1_CarTelemetry: 8 CAR_ECU
+ SG_ Speed : 0|16@1+ (0.1,0) [0|400] "km/h" PIT_WALL
+ SG_ RPM : 16|16@1+ (1,0) [0|16000] "rpm" PIT_WALL
+ SG_ Throttle : 32|8@1+ (1,0) [0|100] "%" PIT_WALL
+ SG_ Gear : 40|4@1+ (1,0) [0|8] "" PIT_WALL
+ SG_ Brake : 44|1@1+ (1,0) [0|1] "" PIT_WALL
+ SG_ DRS : 45|1@1+ (1,0) [0|1] "" PIT_WALL
+ SG_ AliveCounter : 48|4@1+ (1,0) [0|15] "" PIT_WALL
+ SG_ CRC8 : 56|8@1+ (1,0) [0|255] "" PIT_WALL
+
+BO_ 258 F1_LapContext: 8 CAR_ECU
+ SG_ DriverNumber : 0|8@1+ (1,0) [0|99] "" PIT_WALL
+ SG_ LapNumber : 8|8@1+ (1,0) [0|255] "" PIT_WALL
+ SG_ LapDistance : 16|16@1+ (1,0) [0|65535] "m" PIT_WALL
+ SG_ LapTime : 32|20@1+ (0.001,0) [0|1048.575] "s" PIT_WALL
+ SG_ AliveCounter : 52|4@1+ (1,0) [0|15] "" PIT_WALL
+ SG_ CRC8 : 56|8@1+ (1,0) [0|255] "" PIT_WALL
+
+BO_ 259 F1_Position: 8 CAR_ECU
+ SG_ PosX : 0|16@1- (0.1,0) [-3276.8|3276.7] "m" PIT_WALL
+ SG_ PosY : 16|16@1- (0.1,0) [-3276.8|3276.7] "m" PIT_WALL
+ SG_ PosZ : 32|12@1+ (0.1,0) [0|409.5] "m" PIT_WALL
+ SG_ AliveCounter : 44|4@1+ (1,0) [0|15] "" PIT_WALL
+ SG_ DriverNumber : 48|8@1+ (1,0) [0|99] "" PIT_WALL
+ SG_ CRC8 : 56|8@1+ (1,0) [0|255] "" PIT_WALL
+
+
+CM_ "F1 CAN Telemetry Lab - message catalogue v2. All signals are Intel (little-endian) byte order.";
+CM_ BO_ 16 "Session control. Replaces the v1 'detect a 1.5 s gap' heuristic: the sender says explicitly which car is streaming.";
+CM_ BO_ 257 "Car state at the sender's sample rate. Byte 7 of every 8-byte message is an end-to-end CRC-8 (SAE J1850) over bytes 0-6.";
+CM_ BO_ 258 "Lap context sent with every telemetry sample so the receiver never has to integrate speed over wall-clock time. Byte 7 is CRC-8.";
+CM_ BO_ 259 "Car position on the circuit map in metres (FastF1 X/Y/Z divided by 10). Byte 7 is CRC-8.";
+CM_ SG_ 257 Speed "v1 used 8 bits with factor 1 and saturated at 255 km/h. v2 uses 16 bits x 0.1 km/h.";
+CM_ SG_ 257 RPM "Little-endian, like every other signal. v1 packed this big-endian while the DBC declared little-endian.";
+CM_ SG_ 257 Gear "0 = neutral. Sourced from FastF1 column nGear (v1 read a column named Gear that does not exist).";
+CM_ SG_ 257 Brake "FastF1 exposes brake as on/off, so it is a 1-bit flag rather than a fake percentage.";
+CM_ SG_ 257 AliveCounter "Increments by one per frame, modulo 16. A jump means frames were lost.";
+CM_ SG_ 257 CRC8 "CRC-8 SAE J1850: poly 0x1D, init 0xFF, final XOR 0xFF, computed over bytes 0-6.";
+
+BA_DEF_ BO_ "GenMsgCycleTime" INT 0 10000;
+BA_DEF_DEF_ "GenMsgCycleTime" 100;
+BA_ "GenMsgCycleTime" BO_ 257 100;
+BA_ "GenMsgCycleTime" BO_ 258 100;
+BA_ "GenMsgCycleTime" BO_ 259 100;
+
+VAL_ 16 Command 0 "NONE" 1 "START_STREAM" 2 "END_STREAM" 3 "END_SESSION" ;
+VAL_ 257 Gear 0 "N" ;
+VAL_ 257 DRS 0 "CLOSED" 1 "OPEN" ;
+VAL_ 257 Brake 0 "OFF" 1 "ON" ;
