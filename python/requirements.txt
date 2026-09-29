@@ -1,0 +1,5 @@
+python-can>=4.3
+msgpack>=1.0   # python-can udp_multicast interface (hardware-free two-terminal demo)
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7

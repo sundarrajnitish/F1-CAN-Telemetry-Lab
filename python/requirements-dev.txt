@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=7
+cantools>=39
+fastf1>=3.3   # only needed for --fastf1 and tools/export_dataset.py
