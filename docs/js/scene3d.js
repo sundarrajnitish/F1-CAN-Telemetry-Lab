@@ -6,6 +6,16 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const WHEELS = ['FL', 'FR', 'RL', 'RR'];
+
+// Loads a .glb, or a .js module whose default export is the same .glb as base64
+// (used where the host cannot serve binary model files).
+async function loadModel(url) {
+  const loader = new GLTFLoader();
+  if (!url.endsWith('.js')) return loader.loadAsync(url);
+  const mod = await import(new URL(url, document.baseURI).href);
+  const bin = Uint8Array.from(atob(mod.default), (c) => c.charCodeAt(0));
+  return loader.parseAsync(bin.buffer, '');
+}
 const TYRE_R = 0.38;
 let templatePromise = null;
 
@@ -25,9 +35,9 @@ function rimTexture() {
   return t;
 }
 
-export function loadCarTemplate(url = 'models/f1car.glb') {
+export function loadCarTemplate(url = window.F1LAB_MODELS?.car || 'models/f1car.glb') {
   if (!templatePromise) {
-    templatePromise = new GLTFLoader().loadAsync(url).then((gltf) => {
+    templatePromise = loadModel(url).then((gltf) => {
       const root = gltf.scene;
       root.traverse((o) => {
         if (o.isMesh) {
@@ -102,8 +112,8 @@ export function makeCar(template, color = '#00665c', { ghost = false } = {}) {
 
 // Low-poly version of the same model for the 18 cars that are not A or B
 let lodPromise = null;
-export function loadLodTemplate(url = 'models/f1car_lod.glb') {
-  if (!lodPromise) lodPromise = new GLTFLoader().loadAsync(url).then((g) => g.scene);
+export function loadLodTemplate(url = window.F1LAB_MODELS?.lod || 'models/f1car_lod.glb') {
+  if (!lodPromise) lodPromise = loadModel(url).then((g) => g.scene);
   return lodPromise;
 }
 export function makeProxy(template, color) {
