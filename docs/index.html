@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>F1 CAN Telemetry Lab</title>
+<meta name="description" content="Real 2023 Canadian Grand Prix telemetry streamed over a CAN bus: replay it in 3D, encode it bit by bit, watch arbitration, and compare drivers.">
+<meta name="author" content="Nitish Sundarraj">
+<meta property="og:title" content="F1 CAN Telemetry Lab">
+<meta property="og:description" content="Real Formula 1 laps streamed over CAN, explained with interactive simulations.">
+<meta property="og:image" content="img/circuit-aerial.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%230c1016%22/%3E%3Cpath d=%22M4 22h5l3-12 4 16 3-10 2 6h7%22 fill=%22none%22 stroke=%22%23ffb21a%22 stroke-width=%222.6%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Saira+Condensed:wght@600;700;800&family=Saira:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top">F1 <b>CAN</b> Telemetry Lab</a>
+    <nav class="chain" aria-label="Signal chain">
+      <a href="#race">Race</a><a href="#replay">Replay</a><a href="#sample">Sample</a><a href="#encode">Encode</a>
+      <a href="#bus">Bus</a><a href="#receive">Receive</a><a href="#analyse">Analyse</a><a href="#fixes">Fixes</a><a href="#run">Run it</a>
+    </nav>
+    <a class="gh" href="https://github.com/sundarrajnitish/F1-CAN-Telemetry-Lab">GitHub ↗</a>
+  </div>
+</header>
+
+<main id="top">
+<!-- ================================================================ HERO / CAR -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Circuit Gilles Villeneuve · 18 June 2023 · 20 cars</span>
+      <h1>Every fastest lap of Montréal, <em>on a CAN bus</em></h1>
+      <p class="lede">Real telemetry from the <strong>2023 Canadian Grand Prix</strong> is sampled from the car, packed into 8-byte CAN frames, sent across a simulated 500 kbit/s bus and logged at the pit wall. Every stage of that chain is a working simulation on this page, built on the actual race data.</p>
+      <div class="stats" id="heroStats">
+        <div class="stat"><b class="num">4.361</b><span>km lap</span></div>
+        <div class="stat hot"><b class="num" id="stTop">—</b><span>km/h peak</span></div>
+        <div class="stat"><b class="num" id="stRpm">—</b><span>rpm peak</span></div>
+        <div class="stat"><b class="num">3</b><span>frames / sample</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="stage3d" id="heroStage">
+        <div class="loading" id="heroLoading">Loading 3D model…</div>
+        <div class="hud">
+          <div class="paint" id="paint" aria-label="Paint the car in a team colour"></div>
+          <span class="hint">Drag to orbit · tap a sensor</span>
+        </div>
+      </div>
+      <p class="sensor-note" id="sensorNote">Each label marks where a channel on the bus comes from. Tap one to see which bits it occupies.</p>
+      <p class="credit">3D model: <a href="https://commons.wikimedia.org/wiki/File:Aston_Martin_F1_AMR23_2023.stl">Aston Martin AMR23 (2023)</a> by Redgrund, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, via Wikimedia Commons. Decimated, wheels separated, repainted.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 01 RACE -->
+<section class="bay" id="race">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">01 · Source</span><h2>The race behind the data</h2></div>
+      <p class="intro">FastF1 reads Formula 1's live-timing archive. For the <strong>70-lap</strong> Canadian Grand Prix it returns car telemetry at roughly <strong>4 samples per second</strong> and positions at about the same rate. The project uses each driver's fastest lap. Pick a row to choose the two cars used in every simulation below: the <span style="color:var(--speed)">first click sets car A</span>, the <span style="color:var(--brake)">second sets car B</span>.</p>
+    </div>
+    <div class="race-grid">
+      <div class="panel">
+        <div class="panel-h"><h3>Classification &amp; fastest laps</h3><div class="chips" id="raceChips"></div></div>
+        <div class="scroll-x scroll-y"><table class="results" id="results"><thead><tr><th>Pos</th><th>Driver</th><th>Team</th><th>Fastest</th><th>Lap</th><th>Tyre</th><th>Trap</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div style="display:grid;gap:12px;align-content:start;min-width:0">
+        <figure class="photo"><img src="img/circuit-aerial.jpg" alt="Satellite view of Île Notre-Dame and the Circuit Gilles Villeneuve" loading="lazy" style="aspect-ratio:2/1">
+          <figcaption>Île Notre-Dame from orbit. Planet Labs, Inc., <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles-Villeneuve,_May_29,_2018_SkySat_(cropped).jpg">CC BY-SA 4.0</a></figcaption></figure>
+        <div class="photo-pair">
+          <figure class="photo"><img src="img/hairpin.jpg" alt="Cars rounding the L'Épingle hairpin" loading="lazy" style="aspect-ratio:4/3">
+            <figcaption>L'Épingle hairpin, the slowest point of the lap. magicfab, <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles_Villeneuve_Hairpin.jpg">CC BY 2.0</a></figcaption></figure>
+          <figure class="photo"><img src="img/circuit-map.png" alt="Circuit Gilles Villeneuve layout" loading="lazy" style="aspect-ratio:4/3;object-fit:contain;background:#e9edf3">
+            <figcaption>Layout. Will Pittenger (derivative), <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles_Villeneuve.svg">CC BY-SA 3.0</a></figcaption></figure>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-h"><h3>Race story: position by lap</h3><span class="label" id="lapChartHint">Hover a line to follow a car</span></div>
+      <div class="panel-b"><canvas class="chart" id="lapChart" height="300"></canvas></div>
+    </div>
+    <div class="cars-pair">
+      <figure class="photo"><img src="img/rb19.jpg" alt="Red Bull RB19 on display" loading="lazy" style="aspect-ratio:16/9">
+        <figcaption>Red Bull RB19, the winning car (Verstappen, P1). Calreyn88, <a href="https://commons.wikimedia.org/wiki/File:2023_Red_Bull_RB19.jpg">CC BY-SA 4.0</a></figcaption></figure>
+      <figure class="photo"><img src="img/amr23-austria.jpg" alt="Aston Martin AMR23 at the 2023 Austrian Grand Prix" loading="lazy" style="aspect-ratio:16/9">
+        <figcaption>Aston Martin AMR23, the car in the 3D model (Alonso, P2), one race later in Austria. Lukas Raich, <a href="https://commons.wikimedia.org/wiki/File:FIA_F1_Austria_2023_Nr._14_(1).jpg">CC BY-SA 4.0</a></figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 02 REPLAY -->
+<section class="bay" id="replay">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">02 · Simulate</span><h2>Ghost race of 20 fastest laps</h2></div>
+      <p class="intro">All twenty fastest laps start together, so the order on track is the order of lap times. Car A drives the 3D car and the steering-wheel display; car B is the translucent ghost. The trace at the bottom is the exact byte stream the sender would put on the bus for car A, three frames per sample.</p>
+    </div>
+    <div class="replay-grid">
+      <div class="panel" style="overflow:hidden">
+        <div class="stage3d" id="trackStage" style="border:0;border-radius:0">
+          <div class="loading" id="trackLoading">Building track…</div>
+          <div class="cam-seg"><div class="seg" id="camSeg" role="group" aria-label="Camera">
+            <button aria-pressed="true" data-cam="chase">Chase</button><button aria-pressed="false" data-cam="tv">TV</button><button aria-pressed="false" data-cam="heli">Heli</button><button aria-pressed="false" data-cam="orbit">Free</button></div></div>
+          <div class="banner" id="banner"><i></i><span>—</span></div>
+        </div>
+        <div class="transport">
+          <button class="btn primary" id="play" aria-pressed="false">▶ Play</button>
+          <span class="clock" id="clock">0:00.000</span>
+          <input type="range" class="scrub" id="scrub" min="0" max="80" step="0.01" value="0" aria-label="Replay time">
+          <label class="field"><span class="label">Speed</span>
+            <select id="rate"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+          <label class="field"><span class="label">A</span><select id="selA"></select></label>
+          <label class="field"><span class="label">B</span><select id="selB"></select></label>
+        </div>
+      </div>
+      <div style="display:grid;gap:14px;align-content:start;min-width:0">
+        <div class="wheel" aria-label="Steering wheel display for car A">
+          <div class="revs" id="revs"></div>
+          <div class="wheel-main">
+            <div class="readout"><b id="wSpeed">0</b><span>km/h</span></div>
+            <div class="gear" id="wGear">N</div>
+            <div class="readout"><b id="wRpm">0</b><span>rpm</span></div>
+          </div>
+          <div class="pedals">
+            <div><span class="label">Throttle <span id="wThrV">0</span>%</span><div class="bar thr"><i id="wThr"></i></div></div>
+            <div><span class="label">Brake</span><div class="bar brk"><i id="wBrk"></i></div></div>
+          </div>
+          <div class="wheel-row">
+            <span class="drs" id="wDrs">DRS</span>
+            <span class="label">Lap <b class="num" id="wLap" style="color:var(--text)">—</b></span>
+            <span class="label">Δ to B <span class="delta num" id="wDelta">+0.000</span></span>
+          </div>
+        </div>
+        <figure class="inline"><img src="img/steering-wheel.png" alt="Diagram of a Formula One steering wheel" loading="lazy">
+          <figcaption>The display above mimics a real wheel: rev lights across the top, gear in the middle. Pitlane02, <a href="https://commons.wikimedia.org/wiki/File:Formula_one_steering_wheel_front.svg">CC BY-SA 3.0</a></figcaption></figure>
+        <div class="panel">
+          <div class="panel-h"><h3>Timing tower</h3><span class="label">gap to leader</span></div>
+          <div class="panel-b"><ol class="board" id="board"></ol></div>
+        </div>
+      </div>
+    </div>
+    <div class="replay-grid" style="margin-top:14px">
+      <div class="panel">
+        <div class="panel-h"><h3>Bus trace · car A</h3><div class="ctrls"><span class="pill" id="traceStats">0 frames</span><span class="label">candump format</span></div></div>
+        <div class="panel-b"><div class="trace" id="trace" aria-live="off"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Track map</h3><span class="label">X / Y from F1_Position</span></div>
+        <div class="panel-b map-wrap"><canvas class="chart" id="mapCanvas" height="300"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 03 SAMPLE -->
+<section class="bay" id="sample">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">03 · Sample</span><h2>How much of the lap survives</h2></div>
+      <p class="intro">The car stream from FastF1 is about <strong>4 Hz</strong>. The first version kept every 10th row, one point every <strong>2.4 s</strong>, then clamped speed to 8 bits. A braking zone lasts one to two seconds, so most of them fell between samples. Move the sliders to see what the receiver would have seen.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-h">
+        <h3 id="sampleTitle">Speed trace, car A</h3>
+        <div class="ctrls">
+          <label class="field"><span class="label">Keep every</span><input type="range" id="decim" min="1" max="20" value="10"><output class="mono" id="decimV">10th</output></label>
+          <button class="btn" id="clamp" aria-pressed="true">8-bit speed (v1)</button>
+          <button class="btn" id="presetV1">v1 settings</button><button class="btn" id="presetV2">v2 settings</button>
+        </div>
+      </div>
+      <div class="panel-b">
+        <canvas class="chart" id="sampleChart" height="300"></canvas>
+        <div class="compare3" style="margin-top:12px" id="sampleStats"></div>
+        <p class="note" style="margin-top:12px">v2 streams every real sample (interpolated onto a steady 10 Hz grid) and sends the car's own lap time and lap distance in <code>F1_LapContext</code>. The receiver no longer has to integrate speed over its own clock, which is how v1 arrived at a lap only a few hundred metres long.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 04 ENCODE -->
+<section class="bay" id="encode">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">04 · Encode</span><h2>One sample, 64 bits</h2></div>
+      <p class="intro">The live sample from the replay is packed into <code>F1_CarTelemetry</code> (ID <code>0x101</code>). Signals use Intel byte order: bit 0 is the least significant bit of byte 0, and byte 7 holds a CRC-8 over the other seven. <strong>Click any bit to flip it</strong> and watch the end-to-end CRC-8 reject the frame. Switch to v1 to see the original layout and what each tool decoded from it.</p>
+    </div>
+    <div class="ctrls" style="margin-bottom:12px">
+      <div class="seg" id="layoutSeg"><button aria-pressed="true" data-l="v2">v2 layout · 0x101</button><button aria-pressed="false" data-l="v1">v1 layout · 0x123</button></div>
+      <button class="btn" id="freeze" aria-pressed="false">Freeze sample</button>
+      <button class="btn" id="resetBits">Clear flipped bits</button>
+      <span class="label" id="encSource">following the replay</span>
+    </div>
+    <div class="lab-grid">
+      <div class="panel">
+        <div class="panel-h"><h3>Signals</h3><span class="label" id="encMsgName">F1_CarTelemetry</span></div>
+        <div class="panel-b">
+          <div class="scroll-x"><table class="sigtable" id="sigtable"></table></div>
+          <div id="v1compare" hidden style="margin-top:12px">
+            <p class="label" style="margin-bottom:8px">Same frame, three readers</p>
+            <div class="compare3" id="v1cells"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Data field</h3><div class="legend" id="bitLegend"></div></div>
+        <div class="panel-b" style="display:grid;gap:12px">
+          <div class="bitgrid" id="bitgrid"></div>
+          <div class="verdict"><span class="label">Bytes on the wire</span><span class="bytes" id="bytesHex">—</span><span id="crcPill" class="pill ok">CRC ok</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-h"><h3>The whole frame on the wire</h3><div class="ctrls"><span class="pill" id="wireStats">—</span><span class="label">CAN_H / CAN_L at 500 kbit/s</span></div></div>
+      <div class="panel-b">
+        <div class="wire"><canvas id="wireCanvas" height="200"></canvas></div>
+        <p class="note" style="margin-top:10px">After five identical bits the transmitter inserts one opposite <b>stuff bit</b> (marked ▲) so receivers can keep their clocks aligned. The 15-bit CAN CRC protects the frame on the wire; the extra CRC-8 inside the data protects it end to end, through gateways and software queues.</p>
+        <div class="photo-pair" style="margin-top:12px">
+          <figure class="photo"><img src="img/can-frame.png" alt="CAN base frame fields" loading="lazy" style="background:#fff;object-fit:contain;aspect-ratio:1280/324"><figcaption>Base frame format. Wikimedia Commons, <a href="https://commons.wikimedia.org/wiki/File:CAN-Bus-frame_in_base_format_without_stuffbits.svg">CC BY-SA 3.0</a></figcaption></figure>
+          <figure class="photo"><img src="img/can-diff.png" alt="Differential CAN_H and CAN_L voltage levels" loading="lazy" style="background:#fff;object-fit:contain;aspect-ratio:2/1"><figcaption>Differential levels. Stefan-Xp, <a href="https://commons.wikimedia.org/wiki/File:CAN-Bus_Elektrische_Zweidrahtleitung.svg">CC BY-SA 3.0</a></figcaption></figure>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 05 BUS -->
+<section class="bay" id="bus">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">05 · Transmit</span><h2>Who talks first</h2></div>
+      <p class="intro">CAN has no master. When several nodes start a frame at once, each sends its identifier bit by bit while listening. A <strong>0 is dominant</strong> and overwrites a 1, so a node that sends 1 and hears 0 stops. The lowest ID wins without a single bit being lost, which is why session control sits at <code>0x010</code>.</p>
+    </div>
+    <div class="bus-grid">
+      <div class="panel">
+        <div class="panel-h"><h3>Arbitration, bit by bit</h3>
+          <div class="ctrls"><button class="btn" id="arbStep">Step</button><button class="btn primary" id="arbRun">Run</button><button class="btn" id="arbReset">Reset</button>
+          <label class="field"><span class="label">Your node</span><input id="arbCustom" class="mono" value="0x0FF" size="6" style="background:var(--bay-2);border:1px solid var(--rule);border-radius:6px;padding:5px 7px" aria-label="Custom identifier"></label></div></div>
+        <div class="panel-b"><div class="scroll-x"><div class="arb" id="arb"></div></div>
+          <p class="note" style="margin-top:10px" id="arbNote">Press Step to put the first identifier bit on the bus.</p></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Bus load</h3><span class="pill" id="loadPill">—</span></div>
+        <div class="panel-b" style="display:grid;gap:14px">
+          <div class="sliders">
+            <label>Bit rate<input type="range" id="blRate" min="0" max="3" value="2"><output id="blRateV">500 kbit/s</output></label>
+            <label>Samples / s<input type="range" id="blHz" min="1" max="200" value="10"><output id="blHzV">10 Hz</output></label>
+            <label>Cars on one bus<input type="range" id="blCars" min="1" max="20" value="1"><output id="blCarsV">1</output></label>
+          </div>
+          <div class="gauge" id="gauge"><i></i></div>
+          <dl class="kv" id="loadKv"></dl>
+          <p class="note">Frame lengths are measured from the real Montréal frames after bit stuffing, not the worst case. Above about 70 % load, low-priority frames start to queue for noticeable time.</p>
+        </div>
+      </div>
+    </div>
+    <figure class="photo" style="margin-top:14px;max-width:560px"><img src="img/can-topology.png" alt="CAN bus topology with nodes on a terminated two-wire line" loading="lazy" style="background:#fff;object-fit:contain">
+      <figcaption>Every node hangs off the same terminated pair. Taras Babich, <a href="https://commons.wikimedia.org/wiki/File:Topology_CAN_protocol.png">CC BY-SA 4.0</a></figcaption></figure>
+  </div>
+</section>
+
+<!-- ================================================================ 06 RECEIVE -->
+<section class="bay" id="receive">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">06 · Receive</span><h2>Knowing which car is talking</h2></div>
+      <p class="intro">The v1 logger guessed the car from a pause of more than 1.5 s and a hard-coded list of 20 numbers. That list included <strong>#40</strong>, who did not race in Canada, and left out <strong>#21</strong>, who did. The sender skipped #40, so every later car was saved under the wrong number. v2 puts the driver number on the bus.</p>
+    </div>
+    <div class="race-grid">
+      <div class="panel">
+        <div class="panel-h"><h3>What v1 sent vs. how it was filed</h3><span class="pill bad" id="wrongCount">—</span></div>
+        <div class="panel-b"><div class="map-lines" id="mapLines"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>v2 receiver state machine</h3></div>
+        <div class="panel-b" style="display:grid;gap:12px">
+          <div class="state" id="stateRow"><span data-s="idle">IDLE</span>→<span data-s="start">0x010 START #n</span>→<span data-s="stream">0x102 · 0x103 · 0x101 ×N</span>→<span data-s="end">0x010 END #n</span>→<span data-s="done">0x010 END_SESSION</span></div>
+          <dl class="kv" id="rxKv"></dl>
+          <div class="sliders"><label>Corrupted frames<input type="range" id="ber" min="0" max="6" value="0"><output id="berV">off</output></label></div>
+          <figure class="photo"><img src="img/pitlane.jpg" alt="Pit lane of the Circuit Gilles Villeneuve" loading="lazy" style="aspect-ratio:16/8"><figcaption>The pit lane in Montréal, where the receiving end lives. MN.UdeM, <a href="https://commons.wikimedia.org/wiki/File:Pitlane_Du_Circuit_Gilles_Villeneuve_(Montr%C3%A9al).jpg">CC BY-SA 4.0</a></figcaption></figure>
+          <p class="note">On the wire, the controller's own CRC-15 catches bit errors and the frame is resent automatically. The CRC-8 in byte 7 of every data frame guards the rest of the path: gateways, drivers and software queues. Raise the corruption rate to damage frames after the controller; watch the replay trace drop them rather than log a wrong value.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 07 ANALYSE -->
+<section class="bay" id="analyse">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">07 · Analyse</span><h2>Where the time goes</h2></div>
+      <p class="intro">Both laps are aligned on lap distance, the only fair axis. The bottom trace is the running time gap: when it rises, car B is losing time to car A. Hover to scrub both laps; the map shows who owns each of 25 mini-sectors.</p>
+    </div>
+    <div class="ctrls" style="margin-bottom:12px">
+      <label class="field"><span class="label" style="color:var(--speed)">Car A</span><select id="anA"></select></label>
+      <label class="field"><span class="label" style="color:var(--brake)">Car B</span><select id="anB"></select></label>
+      <button class="btn" id="anSwap">Swap</button>
+      <span class="pill" id="anGap">—</span>
+    </div>
+    <div class="an-grid">
+      <div class="panel"><div class="panel-b"><canvas class="chart" id="anChart" height="560"></canvas></div></div>
+      <div style="display:grid;gap:14px;align-content:start;min-width:0">
+        <div class="panel"><div class="panel-h"><h3>Mini-sectors</h3><span class="label" id="msCount">—</span></div><div class="panel-b"><canvas class="chart" id="msMap" height="210"></canvas></div></div>
+        <div class="panel"><div class="panel-h"><h3>Corner by corner</h3></div><div class="panel-b scroll-x"><table class="cornertbl" id="cornerTbl"></table></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 08 FIXES -->
+<section class="bay" id="fixes">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">08 · Review</span><h2>What v1 got wrong, and v2 fixes</h2></div>
+      <p class="intro">The May 2025 version worked end to end and produced plausible-looking plots, which is exactly why these defects went unnoticed. Each one below is measured on the real race data and pinned by a regression test in <code>python/tests/test_legacy_bugs.py</code>.</p>
+    </div>
+    <div class="fixes" id="fixList"></div>
+    <div class="evidence">
+      <figure class="photo"><img src="img/v1-can-explorer.jpg" alt="v1 CAN Explorer screenshot showing RPM peaking near 65,000 and speed flat at 255" loading="lazy"><figcaption>v1 in MATLAB CAN Explorer: RPM spikes to ~65 000 (bytes swapped against the DBC), speed flat-tops at 255, byte 3 (gear) always 00.</figcaption></figure>
+      <figure class="photo"><img src="img/v1-matlab-viewer.jpg" alt="v1 MATLAB live viewer with RPM between 0 and 255" loading="lazy"><figcaption>v1 live viewer: the RPM axis tops out at 300 because only the low byte survived the uint8 bit shift.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 09 RUN -->
+<section class="bay" id="run">
+  <div class="wrap">
+    <div class="bay-head">
+      <div><span class="stageno">09 · Reproduce</span><h2>Run it yourself</h2></div>
+      <p class="intro">No Vector hardware is needed. The Python demo runs the sender and receiver on an in-process virtual bus; the MATLAB replay decodes a recorded trace and runs in GNU Octave; the Simulink model plays back a real lap with core blocks only.</p>
+    </div>
+    <div class="run-grid">
+      <div class="panel"><div class="panel-h"><h3>Python</h3><span class="pill ok">30 tests</span></div><div class="panel-b">
+<pre class="cmd"><span class="c"># clone, install, run the hardware-free demo</span>
+git clone https://github.com/sundarrajnitish/F1-CAN-Telemetry-Lab
+cd F1-CAN-Telemetry-Lab/python
+pip install -r requirements.txt
+python -m f1can demo --drivers 1,14,44
+python -m f1can compare logs/driver_01_telemetry.csv \
+                        logs/driver_14_telemetry.csv
+pytest -q</pre></div></div>
+      <div class="panel"><div class="panel-h"><h3>MATLAB / Octave</h3><span class="pill ok">7 tests</span></div><div class="panel-b">
+<pre class="cmd"><span class="c">% toolbox-free replay of a recorded trace</span>
+cd matlab
+CAN_Replay_Offline
+CAN_Driver_Analysis('logs/driver_01_telemetry.csv', ...
+                    'logs/driver_14_telemetry.csv')
+F1_Telemetry_Model(14)   <span class="c">% Simulink, real lap</span>
+<span class="c">% live, with Vehicle Network Toolbox:</span>
+CAN_Receive_Logger('Vector','Virtual 1',1)</pre></div></div>
+      <div class="panel"><div class="panel-h"><h3>Repository</h3></div><div class="panel-b">
+<div class="tree"><b>dbc/</b>f1_telemetry.dbc   v2 catalogue
+     legacy_v1.dbc
+<b>python/f1can/</b>codec · source · sender
+     receiver · analysis · physical · legacy
+<b>matlab/</b>f1can_decode · CAN_Receive_Logger
+     CAN_Replay_Offline · CAN_Driver_Analysis
+     F1_Telemetry_Model · tests/
+<b>data/</b>canada2023_fastest_laps.csv
+     sample_trace_canada2023.log
+<b>docs/</b>this site (GitHub Pages)</div></div></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><b style="color:var(--text)">F1 CAN Telemetry Lab</b> by Nitish Sundarraj. Code under the MIT licence. This is an independent educational project and is not associated with Formula 1, the FIA, any team or Vector Informatik. Timing data comes from Formula 1's live-timing service through <a href="https://github.com/theOehrly/Fast-F1">FastF1</a> and remains the property of its owners.</p>
+    <ul class="credits">
+      <li>3D car: <a href="https://commons.wikimedia.org/wiki/File:Aston_Martin_F1_AMR23_2023.stl">Aston Martin F1 AMR23 2023</a>, Redgrund (Sketchfab), CC BY 4.0; simplified and split for this site</li>
+      <li>Satellite view: <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles-Villeneuve,_May_29,_2018_SkySat_(cropped).jpg">Planet Labs, Inc.</a>, CC BY-SA 4.0</li>
+      <li>Hairpin photo: <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles_Villeneuve_Hairpin.jpg">magicfab</a>, CC BY 2.0</li>
+      <li>Circuit map: <a href="https://commons.wikimedia.org/wiki/File:Circuit_Gilles_Villeneuve.svg">Will Pittenger, derivative work</a>, CC BY-SA 3.0</li>
+      <li>CAN frame diagram: <a href="https://commons.wikimedia.org/wiki/File:CAN-Bus-frame_in_base_format_without_stuffbits.svg">Wikimedia Commons</a>, CC BY-SA 3.0</li>
+      <li>CAN levels: <a href="https://commons.wikimedia.org/wiki/File:CAN-Bus_Elektrische_Zweidrahtleitung.svg">Stefan-Xp</a>, CC BY-SA 3.0</li>
+      <li>CAN topology: <a href="https://commons.wikimedia.org/wiki/File:Topology_CAN_protocol.png">Taras Babich</a>, CC BY-SA 4.0</li>
+      <li>Red Bull RB19: <a href="https://commons.wikimedia.org/wiki/File:2023_Red_Bull_RB19.jpg">Calreyn88</a>, CC BY-SA 4.0</li>
+      <li>Aston Martin AMR23 in Austria: <a href="https://commons.wikimedia.org/wiki/File:FIA_F1_Austria_2023_Nr._14_(1).jpg">Lukas Raich</a>, CC BY-SA 4.0</li>
+      <li>Steering wheel diagram: <a href="https://commons.wikimedia.org/wiki/File:Formula_one_steering_wheel_front.svg">Pitlane02</a>, CC BY-SA 3.0</li>
+      <li>Pit lane photo: <a href="https://commons.wikimedia.org/wiki/File:Pitlane_Du_Circuit_Gilles_Villeneuve_(Montr%C3%A9al).jpg">MN.UdeM</a>, CC BY-SA 4.0</li>
+      <li>3D rendering: <a href="https://threejs.org">three.js</a>, MIT licence</li>
+      <li>Screenshots of v1 in MATLAB: the author's own, May 2025</li>
+    </ul>
+  </div>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
