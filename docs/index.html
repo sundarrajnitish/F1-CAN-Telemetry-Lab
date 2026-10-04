@@ -23,7 +23,7 @@
     <a class="brand" href="#top">F1 <b>CAN</b> Telemetry Lab</a>
     <nav class="chain" aria-label="Signal chain">
       <a href="#race">Race</a><a href="#replay">Replay</a><a href="#sample">Sample</a><a href="#encode">Encode</a>
-      <a href="#bus">Bus</a><a href="#receive">Receive</a><a href="#analyse">Analyse</a><a href="#fixes">Fixes</a><a href="#run">Run it</a>
+      <a href="#bus">Bus</a><a href="#receive">Receive</a><a href="#analyse">Analyse</a><a href="#design">Design</a><a href="#run">Run it</a>
     </nav>
     <a class="gh" href="https://github.com/sundarrajnitish/F1-CAN-Telemetry-Lab">GitHub ↗</a>
   </div>
@@ -162,22 +162,21 @@
 <section class="bay" id="sample">
   <div class="wrap">
     <div class="bay-head">
-      <div><span class="stageno">03 · Sample</span><h2>How much of the lap survives</h2></div>
-      <p class="intro">The car stream from FastF1 is about <strong>4 Hz</strong>. The first version kept every 10th row, one point every <strong>2.4 s</strong>, then clamped speed to 8 bits. A braking zone lasts one to two seconds, so most of them fell between samples. Move the sliders to see what the receiver would have seen.</p>
+      <div><span class="stageno">03 · Sample</span><h2>Choosing the sample rate</h2></div>
+      <p class="intro">FastF1 delivers car data at about <strong>4 samples per second</strong>, one every 0.24 s. A braking zone lasts one to two seconds and the hairpin minimum lasts less than one, so the streaming rate has to keep every real sample. Drag the slider to thin the stream and see what a slower link would lose.</p>
     </div>
     <div class="panel">
       <div class="panel-h">
         <h3 id="sampleTitle">Speed trace, car A</h3>
         <div class="ctrls">
-          <label class="field"><span class="label">Keep every</span><input type="range" id="decim" min="1" max="20" value="10"><output class="mono" id="decimV">10th</output></label>
-          <button class="btn" id="clamp" aria-pressed="true">8-bit speed (v1)</button>
-          <button class="btn" id="presetV1">v1 settings</button><button class="btn" id="presetV2">v2 settings</button>
+          <label class="field"><span class="label">Keep every</span><input type="range" id="decim" min="1" max="20" value="1" aria-label="Keep every Nth sample"><output class="mono" id="decimV">sample</output></label>
+          <button class="btn" id="decimReset">All samples</button>
         </div>
       </div>
       <div class="panel-b">
         <canvas class="chart" id="sampleChart" height="300"></canvas>
-        <div class="compare3" style="margin-top:12px" id="sampleStats"></div>
-        <p class="note" style="margin-top:12px">v2 streams every real sample (interpolated onto a steady 10 Hz grid) and sends the car's own lap time and lap distance in <code>F1_LapContext</code>. The receiver no longer has to integrate speed over its own clock, which is how v1 arrived at a lap only a few hundred metres long.</p>
+        <div class="compare3 four" style="margin-top:12px" id="sampleStats"></div>
+        <p class="note" style="margin-top:12px">The sender keeps every real sample and interpolates it onto a steady 10 Hz grid, so the receiver gets evenly spaced frames. Each sample also carries the car's own lap time and lap distance in <code>F1_LapContext</code>, so the pit wall never has to reconstruct distance from its own clock.</p>
       </div>
     </div>
   </div>
@@ -188,10 +187,9 @@
   <div class="wrap">
     <div class="bay-head">
       <div><span class="stageno">04 · Encode</span><h2>One sample, 64 bits</h2></div>
-      <p class="intro">The live sample from the replay is packed into <code>F1_CarTelemetry</code> (ID <code>0x101</code>). Signals use Intel byte order: bit 0 is the least significant bit of byte 0, and byte 7 holds a CRC-8 over the other seven. <strong>Click any bit to flip it</strong> and watch the end-to-end CRC-8 reject the frame. Switch to v1 to see the original layout and what each tool decoded from it.</p>
+      <p class="intro">The live sample from the replay is packed into <code>F1_CarTelemetry</code> (ID <code>0x101</code>). Signals use Intel byte order: bit 0 is the least significant bit of byte 0, and byte 7 holds a CRC-8 over the other seven. <strong>Click any bit to flip it</strong> and watch the end-to-end CRC-8 reject the frame.</p>
     </div>
     <div class="ctrls" style="margin-bottom:12px">
-      <div class="seg" id="layoutSeg"><button aria-pressed="true" data-l="v2">v2 layout · 0x101</button><button aria-pressed="false" data-l="v1">v1 layout · 0x123</button></div>
       <button class="btn" id="freeze" aria-pressed="false">Freeze sample</button>
       <button class="btn" id="resetBits">Clear flipped bits</button>
       <span class="label" id="encSource">following the replay</span>
@@ -201,10 +199,6 @@
         <div class="panel-h"><h3>Signals</h3><span class="label" id="encMsgName">F1_CarTelemetry</span></div>
         <div class="panel-b">
           <div class="scroll-x"><table class="sigtable" id="sigtable"></table></div>
-          <div id="v1compare" hidden style="margin-top:12px">
-            <p class="label" style="margin-bottom:8px">Same frame, three readers</p>
-            <div class="compare3" id="v1cells"></div>
-          </div>
         </div>
       </div>
       <div class="panel">
@@ -216,7 +210,7 @@
       </div>
     </div>
     <div class="panel" style="margin-top:14px">
-      <div class="panel-h"><h3>The whole frame on the wire</h3><div class="ctrls"><span class="pill" id="wireStats">—</span><span class="label">CAN_H / CAN_L at 500 kbit/s</span></div></div>
+      <div class="panel-h"><h3>The whole frame on the wire</h3><div class="ctrls"><span class="pill" id="wireStats">—</span><span class="label">CAN_H / CAN_L levels</span></div></div>
       <div class="panel-b">
         <div class="wire"><canvas id="wireCanvas" height="200"></canvas></div>
         <p class="note" style="margin-top:10px">After five identical bits the transmitter inserts one opposite <b>stuff bit</b> (marked ▲) so receivers can keep their clocks aligned. The 15-bit CAN CRC protects the frame on the wire; the extra CRC-8 inside the data protects it end to end, through gateways and software queues.</p>
@@ -268,15 +262,15 @@
   <div class="wrap">
     <div class="bay-head">
       <div><span class="stageno">06 · Receive</span><h2>Knowing which car is talking</h2></div>
-      <p class="intro">The v1 logger guessed the car from a pause of more than 1.5 s and a hard-coded list of 20 numbers. That list included <strong>#40</strong>, who did not race in Canada, and left out <strong>#21</strong>, who did. The sender skipped #40, so every later car was saved under the wrong number. v2 puts the driver number on the bus.</p>
+      <p class="intro">The receiver never infers a car from timing or order. Every stream opens with a <code>SessionCtrl</code> START frame naming the driver, and every sample repeats the number in <code>LapContext</code> and <code>Position</code>. A car that is missing, late or re-sent is still filed under the right name.</p>
     </div>
     <div class="race-grid">
       <div class="panel">
-        <div class="panel-h"><h3>What v1 sent vs. how it was filed</h3><span class="pill bad" id="wrongCount">—</span></div>
+        <div class="panel-h"><h3>Session index at the pit wall</h3><span class="pill ok" id="wrongCount">—</span></div>
         <div class="panel-b"><div class="map-lines" id="mapLines"></div></div>
       </div>
       <div class="panel">
-        <div class="panel-h"><h3>v2 receiver state machine</h3></div>
+        <div class="panel-h"><h3>Receiver state machine</h3></div>
         <div class="panel-b" style="display:grid;gap:12px">
           <div class="state" id="stateRow"><span data-s="idle">IDLE</span>→<span data-s="start">0x010 START #n</span>→<span data-s="stream">0x102 · 0x103 · 0x101 ×N</span>→<span data-s="end">0x010 END #n</span>→<span data-s="done">0x010 END_SESSION</span></div>
           <dl class="kv" id="rxKv"></dl>
@@ -312,18 +306,14 @@
   </div>
 </section>
 
-<!-- ================================================================ 08 FIXES -->
-<section class="bay" id="fixes">
+<!-- ================================================================ 08 DESIGN -->
+<section class="bay" id="design">
   <div class="wrap">
     <div class="bay-head">
-      <div><span class="stageno">08 · Review</span><h2>What v1 got wrong, and v2 fixes</h2></div>
-      <p class="intro">The May 2025 version worked end to end and produced plausible-looking plots, which is exactly why these defects went unnoticed. Each one below is measured on the real race data and pinned by a regression test in <code>python/tests/test_legacy_bugs.py</code>.</p>
+      <div><span class="stageno">08 · Design</span><h2>Decisions behind the bus</h2></div>
+      <p class="intro">Every choice in the message catalogue is sized against the real Montréal data. Each one is pinned by tests in <code>python/tests</code> and <code>matlab/tests</code>, and the same layout is implemented three times (Python, MATLAB, JavaScript) and checked byte for byte.</p>
     </div>
     <div class="fixes" id="fixList"></div>
-    <div class="evidence">
-      <figure class="photo"><img src="img/v1-can-explorer.jpg" alt="v1 CAN Explorer screenshot showing RPM peaking near 65,000 and speed flat at 255" loading="lazy"><figcaption>v1 in MATLAB CAN Explorer: RPM spikes to ~65 000 (bytes swapped against the DBC), speed flat-tops at 255, byte 3 (gear) always 00.</figcaption></figure>
-      <figure class="photo"><img src="img/v1-matlab-viewer.jpg" alt="v1 MATLAB live viewer with RPM between 0 and 255" loading="lazy"><figcaption>v1 live viewer: the RPM axis tops out at 300 because only the low byte survived the uint8 bit shift.</figcaption></figure>
-    </div>
   </div>
 </section>
 
@@ -335,7 +325,7 @@
       <p class="intro">No Vector hardware is needed. The Python demo runs the sender and receiver on an in-process virtual bus; the MATLAB replay decodes a recorded trace and runs in GNU Octave; the Simulink model plays back a real lap with core blocks only.</p>
     </div>
     <div class="run-grid">
-      <div class="panel"><div class="panel-h"><h3>Python</h3><span class="pill ok">30 tests</span></div><div class="panel-b">
+      <div class="panel"><div class="panel-h"><h3>Python</h3><span class="pill ok">27 tests</span></div><div class="panel-b">
 <pre class="cmd"><span class="c"># clone, install, run the hardware-free demo</span>
 git clone https://github.com/sundarrajnitish/F1-CAN-Telemetry-Lab
 cd F1-CAN-Telemetry-Lab/python
@@ -354,10 +344,9 @@ F1_Telemetry_Model(14)   <span class="c">% Simulink, real lap</span>
 <span class="c">% live, with Vehicle Network Toolbox:</span>
 CAN_Receive_Logger('Vector','Virtual 1',1)</pre></div></div>
       <div class="panel"><div class="panel-h"><h3>Repository</h3></div><div class="panel-b">
-<div class="tree"><b>dbc/</b>f1_telemetry.dbc   v2 catalogue
-     legacy_v1.dbc
+<div class="tree"><b>dbc/</b>f1_telemetry.dbc   message catalogue
 <b>python/f1can/</b>codec · source · sender
-     receiver · analysis · physical · legacy
+     receiver · analysis · physical
 <b>matlab/</b>f1can_decode · CAN_Receive_Logger
      CAN_Replay_Offline · CAN_Driver_Analysis
      F1_Telemetry_Model · tests/
@@ -385,7 +374,6 @@ CAN_Receive_Logger('Vector','Virtual 1',1)</pre></div></div>
       <li>Steering wheel diagram: <a href="https://commons.wikimedia.org/wiki/File:Formula_one_steering_wheel_front.svg">Pitlane02</a>, CC BY-SA 3.0</li>
       <li>Pit lane photo: <a href="https://commons.wikimedia.org/wiki/File:Pitlane_Du_Circuit_Gilles_Villeneuve_(Montr%C3%A9al).jpg">MN.UdeM</a>, CC BY-SA 4.0</li>
       <li>3D rendering: <a href="https://threejs.org">three.js</a>, MIT licence</li>
-      <li>Screenshots of v1 in MATLAB: the author's own, May 2025</li>
     </ul>
   </div>
 </footer>

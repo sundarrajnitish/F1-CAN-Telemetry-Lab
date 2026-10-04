@@ -4,11 +4,9 @@ function mdl = F1_Telemetry_Model(driver, openModel)
 %   F1_Telemetry_Model          % car #1 (Verstappen), opens and is ready to Run
 %   F1_Telemetry_Model(14)      % Alonso
 %
-%   The v1 "Universal" model generated sine waves (speed 0-200 km/h at 0.1 Hz) because the CAN
-%   blocks needed Vector hardware. This version keeps the same idea - only core Simulink blocks,
-%   any recent release, no hardware - but plays back the actual fastest lap from
-%   data/canada2023_fastest_laps.csv. A second branch passes speed through the v1 8-bit
-%   Saturation (0..255 km/h) so the defect is visible side by side on one scope.
+%   Uses only core Simulink blocks, so it runs in any recent release with no toolbox and no
+%   hardware. It plays back the actual fastest lap from data/canada2023_fastest_laps.csv on
+%   scopes and displays, and logs the lap to the workspace as f1_log.
 %
 %   For live CAN in Simulink use Vehicle Network Toolbox: CAN Configuration + CAN Receive +
 %   CAN Unpack blocks, with dbc/f1_telemetry.dbc selected in CAN Unpack (message F1_CarTelemetry).
@@ -59,15 +57,8 @@ function mdl = F1_Telemetry_Model(driver, openModel)
         add_line(mdl, sprintf('DiscDemux/%d', i), [dnames{i} ' display/1'], 'autorouting', 'on');
     end
 
-    % v1 defect, visualised: 8-bit speed signal saturates at 255 km/h
-    add_block('simulink/Discontinuities/Saturation', blk('v1 8-bit speed'), 'UpperLimit', '255', ...
-              'LowerLimit', '0', 'Position', pos(x0 + 260, y0 + 120, 50, 34));
-    add_line(mdl, 'ContDemux/1', 'v1 8-bit speed/1', 'autorouting', 'on');
-    add_block('simulink/Signal Routing/Mux', blk('SpeedMux'), 'Inputs', '2', 'Position', pos(x0 + 360, y0 + 105, 6, 60));
-    add_line(mdl, 'ContDemux/1', 'SpeedMux/1', 'autorouting', 'on');
-    add_line(mdl, 'v1 8-bit speed/1', 'SpeedMux/2', 'autorouting', 'on');
-    add_block('simulink/Sinks/Scope', blk('Speed v2 vs v1'), 'Position', pos(x0 + 620, y0 + 115, 40, 40));
-    add_line(mdl, 'SpeedMux/1', 'Speed v2 vs v1/1', 'autorouting', 'on');
+    add_block('simulink/Sinks/Scope', blk('Speed scope'), 'Position', pos(x0 + 620, y0 + 115, 40, 40));
+    add_line(mdl, 'ContDemux/1', 'Speed scope/1', 'autorouting', 'on');
 
     % Driver-inputs scope: throttle, gear, brake
     add_block('simulink/Signal Routing/Mux', blk('InputsMux'), 'Inputs', '3', 'Position', pos(x0 + 360, y0 + 200, 6, 70));

@@ -87,7 +87,7 @@ def resample(df: pd.DataFrame, rate_hz: float) -> pd.DataFrame:
     """Uniform time grid. Continuous channels are interpolated, discrete ones use zero-order hold.
 
     FastF1 car data arrives at roughly 4 Hz, so any rate above that interpolates between real
-    samples; it does not add information. v1 instead kept every 10th sample (one every ~2.4 s).
+    samples; it does not add information.
     """
     t = df["time_s"].to_numpy(float)
     grid = np.arange(t[0], t[-1] + 1e-9, 1.0 / rate_hz)

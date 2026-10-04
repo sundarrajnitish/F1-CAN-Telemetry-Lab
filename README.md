@@ -10,8 +10,6 @@ On the site you can:
 - pack the live sample into a CAN frame bit by bit, flip bits and watch the CRC reject them;
 - step through CAN arbitration, work out bus load from real frames, and compare any two drivers on lap distance.
 
-This is v2 of a project I first built in May 2025 ([F1-CAN-Telemetry](https://github.com/sundarrajnitish/F1-CAN-Telemetry)). v1 ran end to end and produced plausible plots, but the data it logged was wrong in several ways. They are described under [What v2 fixes](#what-v2-fixes).
-
 ```
 FastF1 (live-timing archive)
    │  fastest lap per driver, ~4 Hz car data + positions
@@ -32,7 +30,7 @@ pip install -r requirements-dev.txt
 
 python -m f1can demo --drivers 1,14,44          # sender + receiver on an in-process virtual bus
 python -m f1can compare logs/driver_01_telemetry.csv logs/driver_14_telemetry.csv
-pytest -q                                        # 30 tests
+pytest -q                                        # 27 tests
 ```
 
 The bundled `data/canada2023_fastest_laps.csv` means none of this needs internet. Add `--fastf1` to download any other session with FastF1 instead, for example `--fastf1 --year 2024 --gp Monaco`.
@@ -58,7 +56,7 @@ CAN_Receive_Logger('Vector', 'Virtual 1', 1)   % live, needs Vehicle Network Too
 
 `cd matlab/tests; run_tests` runs 7 checks and passes in both MATLAB and Octave.
 
-## Message catalogue (v2)
+## Message catalogue
 
 All signals are Intel (little-endian). Byte 7 of every 8-byte frame is a CRC-8 SAE J1850 over bytes 0 to 6. Full definition: [`dbc/f1_telemetry.dbc`](dbc/f1_telemetry.dbc).
 
@@ -73,33 +71,29 @@ At 10 Hz one car uses 0.7 % of a 500 kbit/s bus. The measured cost, bit stuffing
 
 The same layout lives in three places, and tests keep them identical: `python/f1can/codec.py` (checked against the DBC with cantools), `matlab/f1can_spec.m`, and `docs/js/can.js` (checked byte for byte against Python).
 
-## What v2 fixes
+## Design decisions
 
-Each item is measured on the real race data and pinned by `python/tests/test_legacy_bugs.py`.
+| Decision | Why |
+|---|---|
+| Speed in 16 bits × 0.1 km/h (0 to 400) | the field peaked at 336.9 km/h (Sargeant) in Montréal; leaves headroom for any circuit |
+| One byte order (Intel) for every signal, defined once in the DBC | Python is checked against the DBC with cantools; MATLAB and JavaScript are checked against Python |
+| Gear in 4 bits, brake and DRS as 1-bit flags | FastF1 reports `nGear` 0 to 8 and brake as on/off; the spare bytes carry integrity data |
+| Every real sample, resampled to 10 Hz with deadline scheduling | FastF1 car data is ~4.2 Hz; braking zones last 1 to 2 s and must not fall between samples |
+| Lap time and lap distance sent by the car (`F1_LapContext`) | logs align on distance immediately, independent of receiver timing |
+| `F1_SessionCtrl` at ID `0x010` opens and closes each car's stream | the receiver always knows which car is talking; lowest ID wins arbitration |
+| CRC-8 SAE J1850 + 4-bit alive counter in every data frame | every single-bit corruption and every dropped frame is detected (tested on all 64 bits of all three frames) |
 
-| # | v1 defect | Evidence | v2 |
-|---|---|---|---|
-| 1 | Speed was 8 bits, factor 1 | 34 % of Verstappen's fastest lap is above 255 km/h; Sargeant hit 336.9 km/h | 16 bits × 0.1 km/h |
-| 2 | RPM sent big-endian, DBC declared little-endian | CAN Explorer showed 11 718 rpm as 50 733 | Intel everywhere; codec tested against the DBC |
-| 3 | `bitshift(data(5), 8)` on a `uint8` in MATLAB | RPM plotted between 0 and 255 | bytes cast to double; one shared decoder |
-| 4 | Sender read column `Gear`; FastF1 calls it `nGear` | gear byte 0 all race | `nGear`, 4 bits; brake as a 1-bit flag (FastF1 gives on/off) |
-| 5 | Kept every 10th row of ~4.2 Hz data | ~29 points per 75 s lap, one every 2.4 s | every sample, resampled to 10 Hz with deadline scheduling |
-| 6 | Distance = `cumtrapz(speed)` over receiver wall-clock time, saved with 1 s resolution | a 4.3 km lap came out at about 150 m | car sends LapDistance and LapTime |
-| 7 | Car identified by a 1.5 s gap and a fixed list containing #40 (did not race) and missing #21 | 8 of 19 logs saved under another driver's number | SessionCtrl frames + driver number on the bus |
-| 8 | No counter or checksum | corruption became wrong data | alive counter + CRC-8 in every data frame |
-| 9 | ~30 near-duplicate scripts, logs and Simulink caches in the repo, no tests | | one sender, receiver and analysis per language; 30 Python + 7 MATLAB tests in CI |
-
-The Simulink "Universal" model in v1 generated sine waves. `F1_Telemetry_Model.m` keeps the same idea (core blocks only, no hardware) but plays back a real lap, and runs speed through the old 8-bit saturation on a second trace so the defect shows next to the correct signal.
+`F1_Telemetry_Model.m` builds a Simulink model from core blocks only (any recent release, no toolbox, no hardware) that plays back a real lap on scopes and displays and logs it to the workspace.
 
 ## Repository layout
 
 ```
-dbc/        f1_telemetry.dbc (v2), legacy_v1.dbc
-python/     f1can package: codec, physical (CRC-15, bit stuffing), source, sender, receiver, analysis, legacy (v1 model)
-            tests/: codec, DBC consistency, end-to-end over a virtual bus, v1 regression evidence
+dbc/        f1_telemetry.dbc (message catalogue)
+python/     f1can package: codec, physical (CRC-15, bit stuffing), source, sender, receiver, analysis
+            tests/: codec, DBC consistency, dataset round trip, end-to-end over a virtual bus
 matlab/     f1can_decode / f1can_spec / f1can_crc8 / f1can_logger, CAN_Receive_Logger, CAN_Replay_Offline,
             CAN_Driver_Analysis, F1_Telemetry_Model (Simulink), tests/run_tests.m
-data/       canada2023_fastest_laps.csv, sample_trace_canada2023.log, legacy_v1/ (one original v1 log)
+data/       canada2023_fastest_laps.csv, sample_trace_canada2023.log
 tools/      export_dataset.py: FastF1 cache -> CSV + docs/data/race.json
 docs/       the interactive site (GitHub Pages, three.js)
 ```

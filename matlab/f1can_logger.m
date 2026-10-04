@@ -6,8 +6,7 @@ function st = f1can_logger(st, id, data)
 %
 %   st.logs is a struct array (one element per car) with numeric columns
 %   [lap, lap_time_s, distance_m, speed_kph, rpm, gear, throttle_pct, brake, drs, x_m, y_m, z_m].
-%   Cars are identified by the explicit F1_SessionCtrl / F1_LapContext driver numbers, never by
-%   the position of a gap in the stream (the v1 approach mislabelled 8 of 20 cars).
+%   Cars are identified by the explicit F1_SessionCtrl / F1_LapContext driver numbers.
 
     if nargin == 0
         st = struct('logs', struct('driver', {}, 'rows', {}), 'current', NaN, 'finished', false, ...

@@ -1,4 +1,4 @@
-"""Pure-Python encoder/decoder for the F1 CAN Telemetry Lab message catalogue (v2).
+"""Pure-Python encoder/decoder for the F1 CAN Telemetry Lab message catalogue.
 
 The layouts here mirror ``dbc/f1_telemetry.dbc`` exactly; ``tests/test_dbc_consistency.py``
 cross-checks every message against the DBC with cantools, so the two can never drift apart.

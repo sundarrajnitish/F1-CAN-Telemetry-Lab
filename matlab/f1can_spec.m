@@ -1,5 +1,5 @@
 function spec = f1can_spec()
-%F1CAN_SPEC  Message catalogue v2 (mirror of dbc/f1_telemetry.dbc, Intel byte order).
+%F1CAN_SPEC  Message catalogue (mirror of dbc/f1_telemetry.dbc, Intel byte order).
 %   Each signal: name, start bit, length, scale, offset, signed.
 
     sig = @(n, st, len, sc, off, sgn) struct('name', n, 'start', st, 'len', len, ...

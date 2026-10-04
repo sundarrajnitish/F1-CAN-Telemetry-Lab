@@ -37,8 +37,8 @@ def test_roundtrip_single_sample():
     assert pos["PosY"] == pytest.approx(-206.8, abs=0.05)  # signed signal survives
 
 
-def test_speed_above_255_is_not_clipped():
-    """The v1 bug: 8-bit speed saturated at 255 km/h. Canada 2023 peaked at 336.9 km/h (SAR)."""
+def test_top_speed_is_carried_exactly():
+    """Canada 2023 peaked at 336.9 km/h (SAR); the 16-bit signal must carry it exactly."""
     _, v = decode(*encode_sample(_sample(speed=336.9), 0)[2])
     assert v["Speed"] == pytest.approx(336.9, abs=0.05)
 

@@ -8,10 +8,10 @@ function st = CAN_Receive_Logger(vendor, device, channel, outDir)
 %   Start it first, then run the sender:
 %       python -m f1can send --interface vector --channel 0      (Vector virtual/hardware)
 %
-%   What changed from v1 (CAN_Receive.m / CAN_Receive_Performance.m):
-%     * frames are drained in batches with receive(ch, Inf) instead of one per loop + pause(0.05)
-%     * bytes are decoded as double (v1: bitshift on uint8 -> RPM was only the low byte)
-%     * cars are identified by driver number carried on the bus, not by counting 1.5 s gaps
+%   Design notes:
+%     * frames are drained in batches with receive(ch, Inf)
+%     * bytes are decoded as double by the toolbox-free f1can_decode
+%     * cars are identified by the driver number carried on the bus
 %     * lap time and lap distance come from the car, so logs never depend on receiver timing
 %     * CRC-8 and alive counter are checked; the title bar reports any errors
 %     * the loop ends on END_SESSION, when the window is closed, or after 10 s of silence

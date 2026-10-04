@@ -15,7 +15,7 @@ class Streamer:
     """Sends each driver's lap as SessionCtrl(START) -> samples -> SessionCtrl(END).
 
     Scheduling uses absolute deadlines on ``time.perf_counter`` so per-frame jitter never
-    accumulates into drift (v1 slept a fixed 0.1 s *after* printing and sending).
+    accumulates into drift.
     """
 
     def __init__(self, bus: can.BusABC, rate_hz: float = 10.0, speedup: float = 1.0,

@@ -4,9 +4,7 @@ function R = CAN_Driver_Analysis(fileA, fileB, showPlot)
 %   R = CAN_Driver_Analysis('logs/driver_01_telemetry.csv', 'logs/driver_14_telemetry.csv')
 %   R = CAN_Driver_Analysis()          % lists logs/ and asks for two indices
 %
-%   v1 rebuilt distance with cumtrapz(speed) over *receiver* timestamps written with one-second
-%   resolution, so most dt were 0 and the lap came out a few hundred metres long. v2 uses the
-%   lap distance and lap time that the car itself sent in F1_LapContext.
+%   Laps are aligned on the lap distance and lap time that the car itself sent in F1_LapContext.
 %
 %   R.distance, R.a / R.b (resampled channels), R.delta (s, + = B behind A), R.minisectorWinner.
 

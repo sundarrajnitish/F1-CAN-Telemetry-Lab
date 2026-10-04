@@ -1,5 +1,5 @@
 function [name, v, ok, err] = f1can_decode(id, data)
-%F1CAN_DECODE  Decode one F1 CAN Telemetry Lab frame (catalogue v2) without any toolbox.
+%F1CAN_DECODE  Decode one F1 CAN Telemetry Lab frame without any toolbox.
 %
 %   [name, v, ok, err] = f1can_decode(id, data)
 %
@@ -9,10 +9,8 @@ function [name, v, ok, err] = f1can_decode(id, data)
 %   Returns the message name, a struct of physical signal values, ok=false and an
 %   error string on unknown IDs, short frames or an end-to-end CRC mismatch.
 %
-%   Fix for the v1 receiver: v1 computed bitshift(data(5), 8) on a uint8 value, which
-%   loses every shifted bit, so RPM was only ever the low byte (0..255). Here bytes are
-%   converted to double before any arithmetic and signals are read bit by bit using the
-%   same Intel (little-endian) layout declared in dbc/f1_telemetry.dbc.
+%   Bytes are converted to double before any arithmetic and signals are read bit by bit
+%   using the same Intel (little-endian) layout declared in dbc/f1_telemetry.dbc.
 %
 %   Runs in MATLAB R2016b+ and GNU Octave 6+.
 

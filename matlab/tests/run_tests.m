@@ -16,7 +16,7 @@ function run_tests()
     assert(ok && strcmp(name, 'F1_CarTelemetry'));
     assert(abs(v.Speed - 284.3) < 1e-9 && v.RPM == 11236 && v.Throttle == 100 && v.Gear == 7);  n = n + 1;
 
-    % 3. RPM above 255 survives (v1: bitshift on uint8 kept only the low byte)
+    % 3. Both RPM bytes are decoded (values above 255)
     assert(v.RPM > 255);  n = n + 1;
 
     % 4. Any single bit flip is caught by the CRC

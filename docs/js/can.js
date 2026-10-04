@@ -1,7 +1,7 @@
 // CAN codec for the browser: identical layouts to python/f1can/codec.py and dbc/f1_telemetry.dbc.
-// Also: CAN 2.0A wire format (CRC-15, bit stuffing) and a faithful model of the v1 pipeline.
+// Also: the CAN 2.0A wire format (CRC-15, bit stuffing) used by the frame lab.
 
-export const ID = { SESSION: 0x010, TELEMETRY: 0x101, LAP: 0x102, POSITION: 0x103, LEGACY: 0x123 };
+export const ID = { SESSION: 0x010, TELEMETRY: 0x101, LAP: 0x102, POSITION: 0x103 };
 
 const S = (name, start, len, scale = 1, signed = false, min = null, max = null, unit = '') =>
   ({ name, start, len, scale, signed, min, max, unit });
@@ -114,18 +114,6 @@ export function decode(id, bytes) {
   }
   return { ok: true, name: msg.name, values, raw };
 }
-
-// ---------------------------------------------------------------- v1 (May 2025) model
-export function legacyEncode(s) {
-  const speed = Math.max(0, Math.min(Math.trunc(s.speed), 255));
-  const thr = Math.max(0, Math.min(Math.trunc(s.throttle), 100));
-  const brk = s.brake ? 100 : 0;
-  const gear = 0;                                  // tel had no 'Gear' column (it is 'nGear')
-  const rpm = Math.trunc(s.rpm);
-  return [speed, thr, brk, gear, (rpm >> 8) & 0xff, rpm & 0xff, 0, 0];
-}
-export const legacyMatlab = (b) => ({ speed: b[0], throttle: b[1], brake: b[2], rpm: b[5] });   // uint8 bitshift lost the high byte
-export const legacyCanalyzer = (b) => ({ Speed: b[0], Throttle: b[1], Brake: b[2], Gear: b[3], RPM: b[4] | (b[5] << 8) });
 
 // ---------------------------------------------------------------- CAN 2.0A wire format
 export function crc15(bits) {
